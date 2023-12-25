@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package zprpc;
+
+option cc_generic_services = true;
+
+message CalcRequest
+{
+  double num1 = 1;
+  double num2 = 2;
+}
+
+message CalcResponse
+{
+  double result = 1;
+}
+
+service CalcService
+{
+  rpc Add(CalcRequest) returns(CalcResponse);
+  rpc Multiply(CalcRequest) returns(CalcResponse);
+}

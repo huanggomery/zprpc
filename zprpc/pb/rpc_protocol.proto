@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package zprpc;
+
+message RequestHeader
+{
+  bytes service_name = 1;
+  bytes method_name = 2;
+  uint32 args_size = 3;
+}
+
+message ResponseHeader
+{
+  int32 status_code = 1;
+  bytes error_info = 2;
+  uint32 args_size = 3;
+}
