@@ -4,7 +4,6 @@
 #include "zprpc/include/rpc_channel.h"
 
 #include <zest/net/tcp_client.h>
-#include <zest/base/logging.h>
 
 #include "zprpc/include/rpc_controller.h"
 #include "zprpc/pb/rpc_protocol.pb.h"
@@ -56,71 +55,60 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
   // TODO: 服务提供者的地址怎么确定？
   zest::net::InetAddress server_addr("127.0.0.1", 12345);
   zest::net::TcpClient client(server_addr);
+  client.setTimer(1000);
 
   // 连接建立后立刻发送RPC请求
-  client.setOnConnectionCallback(
-    [&send_buf](zest::net::TcpConnection &conn){
-      conn.send(send_buf);
+  if (client.connect() == false) {
+    LOG_ERROR << "connect failed";
+    zprpc_controller->SetFailed("client connect failed");
+    return;
+  }
+  if (client.send(send_buf) == false) {
+    LOG_ERROR << "send failed";
+    zprpc_controller->SetFailed("client send failed");
+    return;
+  }
+
+  std::string recv_data;   // 存储所有收到的数据
+  while (1) {
+    std::string str;
+    if (client.recv(str) == false) {
+      zprpc_controller->SetFailed("client recv failed");
+      client.disconnect();
+      return;
     }
-  );
-  // 发送完数据后等待服务器响应
-  client.connection().setWriteCompleteCallback(
-    [](zest::net::TcpConnection &conn){
-      conn.waitForMessage();
-      LOG_DEBUG << "wait for message";
+    recv_data += str;
+    // 解析读到的所有数据
+    if (parseResponse(recv_data, response, zprpc_controller)) {
+      LOG_DEBUG << "rpc finished!";
+      client.disconnect();
+      return;
     }
-  );
-  // 解析读取到的数据
-  client.connection().setMessageCallback(
-    [&client, this, response, zprpc_controller](zest::net::TcpConnection &conn){
-      this->parseResponse(conn, response, zprpc_controller);
+    else {
       if (zprpc_controller->Failed()) {
-        client.stop();
+        LOG_DEBUG << "parse failed";
+        client.disconnect();
         return;
       }
-      if (zprpc_controller->IsFinished()) {
-        client.stop();
-        return;
+      else {
+        /* wait for more data */
       }
     }
-  );
-  // 一旦服务器断开连接则终止客户端
-  client.connection().setCloseCallback(
-    [&client](zest::net::TcpConnection &conn){
-      client.stop();
-      LOG_DEBUG << "disconnect with server";
-    }
-  );
-  // 添加超时定时器
-  client.addTimer(
-    1000,
-    [&client, zprpc_controller](){
-      client.stop();
-      zprpc_controller->SetFailed("RPC time out");
-      LOG_ERROR << "RPC time out";
-    }
-  );
-
-  // 启动RPC客户端，等待请求响应完成或者失败
-  client.start();
-
-  if (done) done->Run();
+  }
 }
 
-void RpcChannel::parseResponse(zest::net::TcpConnection &conn,
+bool RpcChannel::parseResponse(const std::string &recv_data,
                                google::protobuf::Message *response,
                                zprpc::RpcController *controller)
 {
-  if (conn.dataSize() < 4)
-    return;
-  std::string recv_data = conn.data();
-  LOG_DEBUG << "recv " << recv_data.size() << "bytes date from server";
+  if (recv_data.size() < 4)
+    return false;
 
   // 计算 RpcHeader 的长度
   uint32_t header_size;
   memcpy(&header_size, recv_data.c_str(), 4);
   if (recv_data.size() < 4 + header_size)
-    return;
+    return false;
 
   // 解析RPC响应头
   std::string rsp_header_pb_str = recv_data.substr(4, header_size);
@@ -128,27 +116,27 @@ void RpcChannel::parseResponse(zest::net::TcpConnection &conn,
   if (rsp_header_pb.ParseFromString(rsp_header_pb_str) == false) {
     LOG_ERROR << "RPC header deserialize error";
     controller->SetFailed("parse response header failed");
-    return;
+    return false;
   }
   // 状态码非0表示出错
   if (rsp_header_pb.status_code() != 0) {
     LOG_ERROR << "RPC request failed, error_info: " << rsp_header_pb.error_info();
     controller->SetFailed(rsp_header_pb.error_info());
-    return;
+    return false;
   }
   uint32_t args_size = rsp_header_pb.args_size();
   // 判断RPC响应数据是否全部到达
   if (recv_data.size() < 4 + header_size + args_size)
-    return;
-  conn.clearData();
+    return false;
 
   // 解析RPC响应
   if (response->ParseFromString(recv_data.substr(4+header_size, args_size)) == false) {
     LOG_ERROR << "RPC response deserialize error";
     controller->SetFailed("parse response body failed");
-    return;
+    return false;
   }
   controller->SetFinished();
+  return true;
 }
 
 } // namespace zprpc

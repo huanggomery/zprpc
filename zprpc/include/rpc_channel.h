@@ -8,6 +8,7 @@
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/service.h>
+#include <zest/base/logging.h>
 #include <zest/net/tcp_connection.h>
 
 namespace zprpc
@@ -27,7 +28,7 @@ class RpcChannel: public google::protobuf::RpcChannel
                   google::protobuf::Closure* done) override;
 
  private:
-  void parseResponse(zest::net::TcpConnection &conn,
+  bool parseResponse(const std::string &recv_data,
                      google::protobuf::Message *response,
                      zprpc::RpcController *controller);
 };

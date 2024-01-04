@@ -14,7 +14,8 @@ int main()
   zprpc::CalcResponse rsp_pb;
   zprpc::RpcController controller;
 
-  for (int i = 0; i < 100; ++i) {
+  // for (int i = 0; i < 100; ++i) {
+  while (1) {
     int n1 = rand() % 100, n2 = rand() % 100;
     req_pb.set_num1(n1);
     req_pb.set_num2(n2);
@@ -30,6 +31,9 @@ int main()
         std::cerr << n1 << " + " << n2 << " != " << rsp_pb.result() << std::endl;
         exit(-1);
       }
+      else {
+        LOG_INFO << n1 << " + " << n2 << " == " << rsp_pb.result();
+      }
     }
     else {
       // 用乘法
@@ -41,6 +45,9 @@ int main()
       if (n1 * n2 != rsp_pb.result()) {
         std::cerr << n1 << " * " << n2 << " != " << rsp_pb.result() << std::endl;
         exit(-1);
+      }
+      else {
+        LOG_INFO << n1 << " * " << n2 << " == " << rsp_pb.result();
       }
     }
   }

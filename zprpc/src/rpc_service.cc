@@ -107,12 +107,12 @@ void RpcService::onMessage(zest::net::TcpConnection &conn)
   std::string method_name = req_header_pb.method_name();
   uint32_t args_size = req_header_pb.args_size();
   // 打印调试信息
-  std::cout << "============================================" << std::endl;
-  std::cout << "header_size: " << header_size << std::endl; 
-  std::cout << "service_name: " << service_name << std::endl; 
-  std::cout << "method_name: " << method_name << std::endl; 
-  std::cout << "args_size: " << args_size << std::endl; 
-  std::cout << "============================================" << std::endl;
+  // std::cout << "============================================" << std::endl;
+  // std::cout << "header_size: " << header_size << std::endl; 
+  // std::cout << "service_name: " << service_name << std::endl; 
+  // std::cout << "method_name: " << method_name << std::endl; 
+  // std::cout << "args_size: " << args_size << std::endl; 
+  // std::cout << "============================================" << std::endl;
   if (recv_data.size() < 4 + header_size + args_size)
     return;
   conn.clearData();
