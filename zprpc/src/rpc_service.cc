@@ -16,6 +16,7 @@
 
 #include "zprpc/include/rpc_closure.h"
 #include "zprpc/include/rpc_config.h"
+#include "zprpc/include/zk_client.h"
 #include "zprpc/pb/rpc_protocol.pb.h"
 
 using std::placeholders::_1;
@@ -48,21 +49,40 @@ void RpcService::Run()
   // 创建TcpServer
   std::string server_ip = RpcConfig::Get("ip");
   std::string server_port = RpcConfig::Get("port");
-  std::string thread_num = RpcConfig::Get("thread_num");
+  std::string thread_num_str = RpcConfig::Get("thread_num");
   if (server_ip.empty() || server_port.empty()) {
     LOG_FATAL << "The configuration file lacks the IP and port information. The server startup has failed.";
     return;
   }
-  int thread_num_ = thread_num.empty() ? 4 : std::stoi(thread_num);
+  int thread_num = thread_num_str.empty() ? 4 : std::stoi(thread_num_str);
 
   zest::net::InetAddress server_addr(server_ip, std::stoi(server_port));
-  zest::net::TcpServer server(server_addr, thread_num_);
+  zest::net::TcpServer server(server_addr, thread_num);
 
   // 绑定回调函数
   server.setOnConnectionCallback(std::bind(&RpcService::onConnection, this, _1));
   server.setMessageCallback(std::bind(&RpcService::onMessage, this, _1));
   server.setWriteCompleteCallback(std::bind(&RpcService::writeComplete, this, _1));
 
+  // 向zookeeper发布服务
+  ZkClient zk_client;
+  zk_client.Start();
+  // 遍历所有注册的服务
+  for (const auto &p : service_map_) {
+    const google::protobuf::ServiceDescriptor *service_desc = (p.second)->GetDescriptor();
+    std::string service_name = "/" + service_desc->name();
+    zk_client.Create(service_name, "", 0);
+
+    // 遍历服务中所有的方法
+    int method_count = service_desc->method_count();
+    for (int i = 0; i < method_count; ++i) {
+      const google::protobuf::MethodDescriptor *method_desc = service_desc->method(i);
+      std::string method_name = method_desc->name();
+      std::string znode_path = service_name + "/" + method_name;
+      zk_client.Create(znode_path, server_addr.to_string(), ZOO_EPHEMERAL);
+    }
+  }
+  
   // 启动TCP服务器
   LOG_INFO << "Start RPC service at " << server_addr.to_string();
   server.start();
@@ -161,7 +181,6 @@ void RpcService::onMessage(zest::net::TcpConnection &conn)
   // ------------------ 真正的RPC调用 ---------------------- 
   service->CallMethod(method_desc, nullptr, req_msg.get(), rsp_msg.get(), done.get());
 }
-
 
 
 void RpcService::writeComplete(zest::net::TcpConnection &conn)

@@ -9,7 +9,7 @@ target("zprpc")
     add_includedirs(".")
     set_optimize("fastest")
     add_syslinks("pthread")
-    add_links("protobuf", "zest")
+    add_links("protobuf", "zest", "zookeeper_mt")
 
 target("calc_callee")
     set_kind("binary")

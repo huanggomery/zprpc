@@ -6,6 +6,7 @@
 #include <zest/net/tcp_client.h>
 
 #include "zprpc/include/rpc_controller.h"
+#include "zprpc/include/zk_client.h"
 #include "zprpc/pb/rpc_protocol.pb.h"
 
 
@@ -52,8 +53,19 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
   send_buf += req_header_str;
   send_buf += args_str;
 
-  // TODO: 服务提供者的地址怎么确定？
-  zest::net::InetAddress server_addr("127.0.0.1", 12345);
+  // 从zookeeper获得服务提供者的地址
+  ZkClient zk_client;
+  zk_client.Start();
+  std::string znode_path = "/" + service_name + "/" + method_name;
+  std::string provider_addr = zk_client.GetData(znode_path);
+  // 无法查询到该服务
+  if (provider_addr == "") {
+    LOG_ERROR << "method doesn't exist";
+    zprpc_controller->SetFailed("method doesn't exist");
+    return;
+  }
+
+  zest::net::InetAddress server_addr(provider_addr);
   zest::net::TcpClient client(server_addr);
   client.setTimer(1000);
 
