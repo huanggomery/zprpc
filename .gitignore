@@ -5,3 +5,9 @@ build/
 logs/
 obj/
 lib/
+
+example/pb/calculate.pb.h
+example/pb/calculate.pb.cc
+
+zprpc/pb/rpc_protocol.pb.h
+zprpc/pb/rpc_protocol.pb.cc
