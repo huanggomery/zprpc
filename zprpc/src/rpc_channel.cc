@@ -5,6 +5,7 @@
 
 #include <zest/net/tcp_client.h>
 
+#include "zprpc/include/rpc_config.h"
 #include "zprpc/include/rpc_controller.h"
 #include "zprpc/include/zk_client.h"
 #include "zprpc/pb/rpc_protocol.pb.h"
@@ -68,7 +69,13 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
 
   zest::net::InetAddress server_addr(provider_addr);
   zest::net::TcpClient client(server_addr);
-  client.setTimer(1000);
+
+  // 设置超时时间
+  std::string rpc_time_out_str = RpcConfig::Get("rpc_time_out");
+  if (rpc_time_out_str.empty())
+    rpc_time_out_str = "1000";
+  uint64_t rpc_time_out = std::stoul(rpc_time_out_str);
+  client.setTimer(rpc_time_out);
 
   // 连接建立后立刻发送RPC请求
   if (client.connect() == false) {
