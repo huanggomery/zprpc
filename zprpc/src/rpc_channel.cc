@@ -21,6 +21,7 @@ void RpcChannel::CallMethod(const google::protobuf::MethodDescriptor* method,
 {
   zprpc::RpcController *zprpc_controller = 
       reinterpret_cast<zprpc::RpcController*>(controller);
+  zprpc_controller->Reset();
 
   // 获取服务名和方法名
   auto service_desc = method->service();
